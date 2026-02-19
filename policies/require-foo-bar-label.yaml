@@ -1,0 +1,27 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  annotations:
+    policies.kyverno.io/category: Security
+    policies.kyverno.io/description: Ensures all pods have the required label foo=bar for compliance and security purposes.
+    policies.kyverno.io/subject: Pod, Label
+    policies.kyverno.io/title: Require foo=bar Label
+  name: require-foo-bar-label
+spec:
+  background: true
+  rules:
+  - match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+          operations:
+          - CREATE
+          - UPDATE
+    name: require-foo-bar-label
+    validate:
+      cel:
+        expressions:
+        - expression: has(object.metadata.labels) && has(object.metadata.labels.foo) && object.metadata.labels.foo == 'bar'
+          messageExpression: "'Pod must have label foo=bar. Current labels: ' + string(object.metadata.?labels.orValue({}))"
+  validationFailureAction: Enforce
