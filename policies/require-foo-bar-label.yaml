@@ -24,5 +24,5 @@ spec:
       cel:
         expressions:
         - expression: has(object.metadata.labels) && has(object.metadata.labels.foo) && object.metadata.labels.foo == 'bar'
-          message: "Pod must have label foo=bar. Current labels: {{ object.metadata.labels || {} }}"
+          message: "Pod must have label foo=bar"
   validationFailureAction: Audit
