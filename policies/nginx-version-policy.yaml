@@ -17,14 +17,48 @@ spec:
     validate:
       cel:
         expressions:
-        - expression: variables.nginxContainers.all(c, image(c.image).tag() != 'latest' && image(c.image).tag() != '')
-          messageExpression: "'nginx containers must have explicit version tags, found containers with latest or no tag: ' + variables.nginxContainers.filter(c, image(c.image).tag() == 'latest' || image(c.image).tag() == '').map(c, c.image).join(', ')"
-        - expression: variables.nginxContainers.all(c, isSemver(image(c.image).tag()))
-          messageExpression: "'nginx containers must use semantic versioning, found invalid versions: ' + variables.nginxContainers.filter(c, !isSemver(image(c.image).tag())).map(c, c.image).join(', ')"
-        - expression: variables.nginxContainers.all(c, semver(image(c.image).tag()).compareTo(semver(variables.minVersion)) >= 0)
-          messageExpression: "'nginx containers must use version 1.28.0 or higher, found versions below minimum: ' + variables.nginxContainers.filter(c, semver(image(c.image).tag()).compareTo(semver(variables.minVersion)) < 0).map(c, c.image + ' (version: ' + image(c.image).tag() + ')').join(', ')"
+        - expression: |
+            variables.nginxContainers.all(c, 
+              image(c.image).tag() != 'latest' && 
+              image(c.image).tag() != ''
+            )
+          messageExpression: |
+            'nginx containers must have explicit version tags, found containers with latest or no tag: ' + 
+            variables.nginxContainers.filter(c, 
+              image(c.image).tag() == 'latest' || 
+              image(c.image).tag() == ''
+            ).map(c, c.image).join(', ')
+        - expression: |
+            variables.nginxContainers.all(c, 
+              image(c.image).tag().matches('^[0-9]+\\.[0-9]+\\.[0-9]+(-alpine(-slim)?)?$')
+            )
+          messageExpression: |
+            'nginx containers must use semantic versioning (optionally with -alpine or -alpine-slim), found invalid versions: ' + 
+            variables.nginxContainers.filter(c, 
+              !image(c.image).tag().matches('^[0-9]+\\.[0-9]+\\.[0-9]+(-alpine(-slim)?)?$')
+            ).map(c, c.image).join(', ')
+        - expression: |
+            variables.nginxContainers.all(c, 
+              semver(
+                image(c.image).tag().endsWith('-alpine-slim') ? image(c.image).tag().substring(0, size(image(c.image).tag()) - 12) : 
+                image(c.image).tag().endsWith('-alpine') ? image(c.image).tag().substring(0, size(image(c.image).tag()) - 7) : 
+                image(c.image).tag()
+              ).compareTo(semver(variables.minVersion)) >= 0
+            )
+          messageExpression: |
+            'nginx containers must use version 1.28.0 or higher (base version, including -alpine and -alpine-slim variants), found versions below minimum: ' + 
+            variables.nginxContainers.filter(c, 
+              semver(
+                image(c.image).tag().endsWith('-alpine-slim') ? image(c.image).tag().substring(0, size(image(c.image).tag()) - 12) : 
+                image(c.image).tag().endsWith('-alpine') ? image(c.image).tag().substring(0, size(image(c.image).tag()) - 7) : 
+                image(c.image).tag()
+              ).compareTo(semver(variables.minVersion)) < 0
+            ).map(c, c.image + ' (version: ' + image(c.image).tag() + ')').join(', ')
         variables:
-        - expression: object.spec.containers + object.spec.?initContainers.orValue([]) + object.spec.?ephemeralContainers.orValue([])
+        - expression: |
+            object.spec.containers + 
+            object.spec.?initContainers.orValue([]) + 
+            object.spec.?ephemeralContainers.orValue([])
           name: allContainers
         - expression: variables.allContainers.filter(c, image(c.image).repository().contains('nginx'))
           name: nginxContainers
