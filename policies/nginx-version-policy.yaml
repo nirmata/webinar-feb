@@ -1,0 +1,33 @@
+apiVersion: kyverno.io/v1
+kind: Policy
+metadata:
+  namespace: demo
+  annotations:
+    pod-policies.kyverno.io/autogen-controllers: DaemonSet,Deployment,Job,StatefulSet
+  name: nginx-version-policy
+spec:
+  background: true
+  rules:
+  - match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+    name: check-nginx-version
+    validate:
+      cel:
+        expressions:
+        - expression: variables.nginxContainers.all(c, image(c.image).tag() != 'latest' && image(c.image).tag() != '')
+          messageExpression: "'nginx containers must have explicit version tags, found containers with latest or no tag: ' + variables.nginxContainers.filter(c, image(c.image).tag() == 'latest' || image(c.image).tag() == '').map(c, c.image).join(', ')"
+        - expression: variables.nginxContainers.all(c, isSemver(image(c.image).tag()))
+          messageExpression: "'nginx containers must use semantic versioning, found invalid versions: ' + variables.nginxContainers.filter(c, !isSemver(image(c.image).tag())).map(c, c.image).join(', ')"
+        - expression: variables.nginxContainers.all(c, semver(image(c.image).tag()).compareTo(semver(variables.minVersion)) >= 0)
+          messageExpression: "'nginx containers must use version 1.28.0 or higher, found versions below minimum: ' + variables.nginxContainers.filter(c, semver(image(c.image).tag()).compareTo(semver(variables.minVersion)) < 0).map(c, c.image + ' (version: ' + image(c.image).tag() + ')').join(', ')"
+        variables:
+        - expression: object.spec.containers + object.spec.?initContainers.orValue([]) + object.spec.?ephemeralContainers.orValue([])
+          name: allContainers
+        - expression: variables.allContainers.filter(c, image(c.image).repository().contains('nginx'))
+          name: nginxContainers
+        - expression: "'1.28.0'"
+          name: minVersion
+  validationFailureAction: Enforce
